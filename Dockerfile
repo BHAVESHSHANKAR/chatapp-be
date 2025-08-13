@@ -1,18 +1,24 @@
-# Use an official OpenJDK 17 image as the base
-     FROM openjdk:17-jdk-slim
+# Stage 1: Build the app
+FROM maven:3.9.6-eclipse-temurin-17 AS build
+WORKDIR /app
 
-     # Set the working directory inside the container
-     WORKDIR /app
+# Copy pom.xml first for caching dependencies
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
-     # Copy the .env file to the container
-     COPY .env .env
+# Copy source code
+COPY src ./src
 
-     # Copy the built JAR file (assumes Maven builds the JAR in target/)
-     COPY target/demo-0.0.1-SNAPSHOT.jar app.jar
+# Build jar
+RUN mvn clean package -DskipTests
 
-     # Expose the application port (8080 as per application.properties)
-     EXPOSE 8080
+# Stage 2: Run the app
+FROM openjdk:17-jdk-slim
+WORKDIR /app
 
-     # Command to run the application
-     # Uses java -jar to run the Spring Boot application
-     CMD ["java", "-jar", "app.jar"]
+# Copy jar from build stage
+COPY --from=build /app/target/demo-0.0.1-SNAPSHOT.jar app.jar
+
+# No .env copy here — use ENV variables instead
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
