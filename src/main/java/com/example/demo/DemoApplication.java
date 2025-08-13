@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -14,58 +15,68 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DemoApplication {
 
-	@Autowired
-	private Environment environment;
+    @Autowired
+    private Environment environment;
 
-	@Autowired
-	private DataSource dataSource;
+    @Autowired
+    private DataSource dataSource;
 
-	public static void main(String[] args) {
-		SpringApplication.run(DemoApplication.class, args);
-	}
+    public static void main(String[] args) {
+        // Load .env file first
+        Dotenv dotenv = Dotenv.configure()
+                .ignoreIfMissing() // Don't fail if .env is missing
+                .load();
 
-	@EventListener(ApplicationReadyEvent.class)
-	public void onApplicationReady() {
-		String port = environment.getProperty("server.port", "8080");
-		String appName = environment.getProperty("spring.application.name", "demo");
+        // Add all .env variables to System properties
+        dotenv.entries().forEach(entry ->
+                System.setProperty(entry.getKey(), entry.getValue())
+        );
 
-		System.out.println("\n" + "=".repeat(60));
-		System.out.println("🚀 " + appName.toUpperCase() + " SERVER STARTED SUCCESSFULLY!");
-		System.out.println("=".repeat(60));
-		System.out.println("🌐 Server URL: http://localhost:" + port);
-		System.out.println("📡 WebSocket: ws://localhost:" + port + "/ws");
-		System.out.println("📊 Status API: http://localhost:" + port + "/api/status");
+        SpringApplication.run(DemoApplication.class, args);
+    }
 
-		// Check database connection
-		try (Connection connection = dataSource.getConnection()) {
-			String dbUrl = connection.getMetaData().getURL();
-			String dbName = connection.getMetaData().getDatabaseProductName();
-			String dbVersion = connection.getMetaData().getDatabaseProductVersion();
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        String port = environment.getProperty("server.port", "8080");
+        String appName = environment.getProperty("spring.application.name", "demo");
 
-			System.out.println("✅ Database: " + dbName + " (" + dbVersion + ")");
-			System.out.println("🔗 Connection: " + maskPassword(dbUrl));
+        System.out.println("\n" + "=".repeat(60));
+        System.out.println("🚀 " + appName.toUpperCase() + " SERVER STARTED SUCCESSFULLY!");
+        System.out.println("=".repeat(60));
+        System.out.println("🌐 Server URL: http://localhost:" + port);
+        System.out.println("📡 WebSocket: ws://localhost:" + port + "/ws");
+        System.out.println("📊 Status API: http://localhost:" + port + "/api/status");
 
-		} catch (Exception e) {
-			System.err.println("❌ Database connection failed: " + e.getMessage());
-		}
+        // Check database connection
+        try (Connection connection = dataSource.getConnection()) {
+            String dbUrl = connection.getMetaData().getURL();
+            String dbName = connection.getMetaData().getDatabaseProductName();
+            String dbVersion = connection.getMetaData().getDatabaseProductVersion();
 
-		// Memory info
-		Runtime runtime = Runtime.getRuntime();
-		long totalMemory = runtime.totalMemory() / (1024 * 1024);
-		long freeMemory = runtime.freeMemory() / (1024 * 1024);
-		long usedMemory = totalMemory - freeMemory;
+            System.out.println("✅ Database: " + dbName + " (" + dbVersion + ")");
+            System.out.println("🔗 Connection: " + maskPassword(dbUrl));
 
-		System.out.println("💾 Memory: " + usedMemory + "MB used / " + totalMemory + "MB total");
-		System.out.println("🔐 Encryption: AES-128 enabled");
-		System.out.println("🔒 Security: JWT authentication active");
-		System.out.println("⚡ WebSocket: STOMP over SockJS ready");
-		System.out.println("=".repeat(60));
-		System.out.println("🎯 READY TO ACCEPT REQUESTS!");
-		System.out.println("=".repeat(60) + "\n");
-	}
+        } catch (Exception e) {
+            System.err.println("❌ Database connection failed: " + e.getMessage());
+        }
 
-	private String maskPassword(String url) {
-		// Mask password in URL for security
-		return url.replaceAll("password=[^&]*", "password=***");
-	}
+        // Memory info
+        Runtime runtime = Runtime.getRuntime();
+        long totalMemory = runtime.totalMemory() / (1024 * 1024);
+        long freeMemory = runtime.freeMemory() / (1024 * 1024);
+        long usedMemory = totalMemory - freeMemory;
+
+        System.out.println("💾 Memory: " + usedMemory + "MB used / " + totalMemory + "MB total");
+        System.out.println("🔐 Encryption: AES-128 enabled");
+        System.out.println("🔒 Security: JWT authentication active");
+        System.out.println("⚡ WebSocket: STOMP over SockJS ready");
+        System.out.println("=".repeat(60));
+        System.out.println("🎯 READY TO ACCEPT REQUESTS!");
+        System.out.println("=".repeat(60) + "\n");
+    }
+
+    private String maskPassword(String url) {
+        // Mask password in URL for security
+        return url.replaceAll("password=[^&]*", "password=***");
+    }
 }
