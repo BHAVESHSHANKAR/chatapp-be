@@ -1,0 +1,33 @@
+ target/*
+ !target/demo-0.0.1-SNAPSHOT.jar
+ *.jar.original
+ *.log
+
+ # Ignore IDE and editor files
+ .idea/
+ *.iml
+ .vscode/
+ *.code-workspace
+
+ # Ignore Git files
+ .git/
+ .gitignore
+
+ # Ignore local configuration and temporary files
+ *.md
+ *.txt
+ *.xml.bak
+ *.properties.bak
+
+ # Ignore Docker-related files (except .env, which we need)
+ Dockerfile
+ docker-compose.yml
+
+ # Ignore test and documentation directories
+ src/test/
+ docs/
+
+ # Ignore other common unnecessary files
+ *.swp
+ *.swo
+ *.DS_Store
