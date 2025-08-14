@@ -41,6 +41,16 @@ public class ChatRestController {
         }
     }
     
+    @PostMapping("/send")
+    public ResponseEntity<ChatMessage> sendMessage(@RequestBody ChatMessage chatMessage) {
+        try {
+            ChatMessage savedMessage = chatService.saveMessage(chatMessage);
+            return ResponseEntity.ok(savedMessage);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
     @GetMapping("/unread-count")
     public ResponseEntity<Long> getUnreadCount(@RequestParam Long userId) {
         try {
