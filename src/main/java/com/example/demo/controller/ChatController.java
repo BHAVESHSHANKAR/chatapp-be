@@ -46,7 +46,7 @@ public class ChatController {
 
     private void sendMessageInstantly(ChatMessage chatMessage) {
         try {
-            // Add timestamp for immediate delivery
+            // Add timestamp for immediate delivery (ensure consistent timezone)
             if (chatMessage.getTimestamp() == null) {
                 chatMessage.setTimestamp(java.time.LocalDateTime.now());
             }
