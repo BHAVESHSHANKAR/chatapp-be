@@ -23,9 +23,11 @@ public class EmailService {
     @Value("${app.email.name}")
     private String fromName;
 
-    @Async("emailTaskExecutor")
+    @Async("taskExecutor")
     public void sendWelcomeEmail(String toEmail, String username) {
         try {
+            System.out.println("Attempting to send welcome email to: " + toEmail);
+            
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
@@ -37,14 +39,19 @@ public class EmailService {
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
+            System.out.println("Welcome email sent successfully to: " + toEmail);
         } catch (MessagingException | UnsupportedEncodingException e) {
+            System.err.println("Failed to send welcome email to " + toEmail + ": " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("Failed to send welcome email", e);
         }
     }
 
-    @Async("emailTaskExecutor")
+    @Async("taskExecutor")
     public void sendFriendRequestEmail(String toEmail, String toUsername, String fromUsername, String fromEmail) {
         try {
+            System.out.println("Attempting to send friend request email to: " + toEmail);
+            
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
@@ -56,7 +63,10 @@ public class EmailService {
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
+            System.out.println("Friend request email sent successfully to: " + toEmail);
         } catch (MessagingException | UnsupportedEncodingException e) {
+            System.err.println("Failed to send friend request email to " + toEmail + ": " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("Failed to send friend request email", e);
         }
     }

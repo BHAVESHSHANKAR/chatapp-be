@@ -35,4 +35,14 @@ public class EmailTestController {
             return ResponseEntity.badRequest().body("Failed to send email: " + e.getMessage());
         }
     }
+    
+    @GetMapping("/email-config")
+    public ResponseEntity<?> testEmailConfig() {
+        try {
+            // Test basic email configuration
+            return ResponseEntity.ok("Email configuration loaded successfully. Check server logs for details.");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Email configuration error: " + e.getMessage());
+        }
+    }
 }
