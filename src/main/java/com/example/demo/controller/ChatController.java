@@ -6,7 +6,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Controller;
+import java.util.concurrent.CompletableFuture;
 
 @Controller
 @RequiredArgsConstructor
@@ -17,43 +19,67 @@ public class ChatController {
 
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(@Payload ChatMessage chatMessage) {
+        // Send message immediately to both users for instant delivery
+        sendMessageInstantly(chatMessage);
+        
+        // Save to database asynchronously to avoid blocking
+        saveMessageAsync(chatMessage);
+    }
+    
+    private void sendMessageInstantly(ChatMessage chatMessage) {
         try {
-            System.out.println("📨 Received message: " + chatMessage.getContent() +
-                    " from " + chatMessage.getSenderUsername() +
-                    " to " + chatMessage.getReceiverUsername());
-
-            // Save message to database
-            ChatMessage savedMessage = chatService.saveMessage(chatMessage);
-
-            System.out.println("💾 Message saved with ID: " + savedMessage.getId());
-
-            // Send to receiver
+            // Add timestamp for immediate delivery
+            chatMessage.setTimestamp(java.time.LocalDateTime.now());
+            
+            // Send to receiver immediately
             messagingTemplate.convertAndSendToUser(
-                    savedMessage.getReceiverUsername(),
+                    chatMessage.getReceiverUsername(),
                     "/queue/messages",
-                    savedMessage);
+                    chatMessage);
 
-            // Send confirmation back to sender
-            messagingTemplate.convertAndSendToUser(
-                    savedMessage.getSenderUsername(),
-                    "/queue/messages",
-                    savedMessage);
-
-            System.out.println("📤 Message sent to both users");
-
-        } catch (Exception e) {
-            System.err.println("❌ Error processing message: " + e.getMessage());
-            e.printStackTrace();
-
-            // Send error message back to sender
-            ChatMessage errorMessage = new ChatMessage();
-            errorMessage.setContent("Failed to send message: " + e.getMessage());
-            errorMessage.setType(ChatMessage.Type.CHAT);
+            // Send confirmation back to sender immediately
             messagingTemplate.convertAndSendToUser(
                     chatMessage.getSenderUsername(),
-                    "/queue/errors",
-                    errorMessage);
+                    "/queue/messages",
+                    chatMessage);
+
+        } catch (Exception e) {
+            sendErrorMessage(chatMessage.getSenderUsername(), "Failed to send message");
         }
+    }
+    
+    @Async("taskExecutor")
+    public CompletableFuture<Void> saveMessageAsync(ChatMessage chatMessage) {
+        try {
+            // Save message to database in background
+            ChatMessage savedMessage = chatService.saveMessage(chatMessage);
+            
+            // Update the message with database ID if needed
+            if (savedMessage.getId() != null) {
+                // Send updated message with real ID to both users
+                messagingTemplate.convertAndSendToUser(
+                        savedMessage.getReceiverUsername(),
+                        "/queue/message-update",
+                        savedMessage);
+                        
+                messagingTemplate.convertAndSendToUser(
+                        savedMessage.getSenderUsername(),
+                        "/queue/message-update",
+                        savedMessage);
+            }
+            
+        } catch (Exception e) {
+            // Silent fail for background operations to avoid disrupting UX
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+    
+    private void sendErrorMessage(String username, String errorText) {
+        ChatMessage errorMessage = new ChatMessage();
+        errorMessage.setContent(errorText);
+        errorMessage.setType(ChatMessage.Type.CHAT);  // Use CHAT type for errors
+        errorMessage.setMessageType("ERROR");
+        messagingTemplate.convertAndSendToUser(username, "/queue/errors", errorMessage);
     }
 
     @MessageMapping("/chat.addUser")
