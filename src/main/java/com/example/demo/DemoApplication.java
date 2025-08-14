@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @SpringBootApplication
 @Slf4j
+@org.springframework.scheduling.annotation.EnableAsync
 public class DemoApplication {
 
     @Autowired

@@ -33,23 +33,41 @@ public class ChatService {
     @Transactional
     public ChatMessage saveMessage(ChatMessage chatMessage) {
         try {
+            // Validate input
+            if (chatMessage == null) {
+                throw new IllegalArgumentException("Chat message cannot be null");
+            }
+            if (chatMessage.getContent() == null || chatMessage.getContent().trim().isEmpty()) {
+                throw new IllegalArgumentException("Message content cannot be empty");
+            }
+            if (chatMessage.getSenderId() == null || chatMessage.getReceiverId() == null) {
+                throw new IllegalArgumentException("Sender and receiver IDs are required");
+            }
+
             User sender = userRepository.findById(chatMessage.getSenderId())
-                    .orElseThrow(() -> new RuntimeException("Sender not found"));
+                    .orElseThrow(() -> new RuntimeException("Sender not found with ID: " + chatMessage.getSenderId()));
             User receiver = userRepository.findById(chatMessage.getReceiverId())
-                    .orElseThrow(() -> new RuntimeException("Receiver not found"));
+                    .orElseThrow(() -> new RuntimeException("Receiver not found with ID: " + chatMessage.getReceiverId()));
 
             // Create or get chat room (optimized with caching)
             ChatRoom chatRoom = getOrCreateChatRoomOptimized(sender, receiver);
 
             // Encrypt message content
-            String encryptedContent = encryptionUtil.encrypt(chatMessage.getContent());
+            String encryptedContent = encryptionUtil.encrypt(chatMessage.getContent().trim());
 
             // Create and save message
             Message message = new Message();
             message.setSender(sender);
             message.setReceiver(receiver);
             message.setEncryptedContent(encryptedContent);
-            message.setMessageType(Message.MessageType.valueOf(chatMessage.getMessageType()));
+            
+            // Set message type with default fallback
+            String messageType = chatMessage.getMessageType();
+            if (messageType == null || messageType.trim().isEmpty()) {
+                messageType = "TEXT";
+            }
+            message.setMessageType(Message.MessageType.valueOf(messageType.toUpperCase()));
+            
             message.setCreatedAt(chatMessage.getTimestamp() != null ? chatMessage.getTimestamp() : LocalDateTime.now());
             message.setIsRead(false);
 
@@ -60,8 +78,10 @@ public class ChatService {
 
             // Convert to DTO and decrypt for response
             return convertToDTO(savedMessage);
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to save message", e);
+            throw new RuntimeException("Failed to save message: " + e.getMessage(), e);
         }
     }
 

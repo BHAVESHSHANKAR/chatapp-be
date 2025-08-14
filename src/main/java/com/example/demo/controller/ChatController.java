@@ -19,18 +19,43 @@ public class ChatController {
 
     @MessageMapping("/chat.sendMessage")
     public void sendMessage(@Payload ChatMessage chatMessage) {
-        // Send message immediately to both users for instant delivery
-        sendMessageInstantly(chatMessage);
-        
-        // Save to database asynchronously to avoid blocking
-        saveMessageAsync(chatMessage);
+        try {
+            // Validate message
+            if (chatMessage == null || chatMessage.getContent() == null || chatMessage.getContent().trim().isEmpty()) {
+                sendErrorMessage(chatMessage != null ? chatMessage.getSenderUsername() : "unknown",
+                        "Message content cannot be empty");
+                return;
+            }
+
+            if (chatMessage.getSenderUsername() == null || chatMessage.getReceiverUsername() == null) {
+                sendErrorMessage(chatMessage.getSenderUsername(), "Invalid sender or receiver");
+                return;
+            }
+
+            // Send message immediately to both users for instant delivery
+            sendMessageInstantly(chatMessage);
+
+            // Save to database asynchronously to avoid blocking
+            saveMessageAsync(chatMessage);
+
+        } catch (Exception e) {
+            sendErrorMessage(chatMessage != null ? chatMessage.getSenderUsername() : "unknown",
+                    "Failed to send message: " + e.getMessage());
+        }
     }
-    
+
     private void sendMessageInstantly(ChatMessage chatMessage) {
         try {
             // Add timestamp for immediate delivery
-            chatMessage.setTimestamp(java.time.LocalDateTime.now());
-            
+            if (chatMessage.getTimestamp() == null) {
+                chatMessage.setTimestamp(java.time.LocalDateTime.now());
+            }
+
+            // Set default type if not set
+            if (chatMessage.getType() == null) {
+                chatMessage.setType(ChatMessage.Type.CHAT);
+            }
+
             // Send to receiver immediately
             messagingTemplate.convertAndSendToUser(
                     chatMessage.getReceiverUsername(),
@@ -44,42 +69,48 @@ public class ChatController {
                     chatMessage);
 
         } catch (Exception e) {
-            sendErrorMessage(chatMessage.getSenderUsername(), "Failed to send message");
+            sendErrorMessage(chatMessage.getSenderUsername(), "Failed to send message: " + e.getMessage());
         }
     }
-    
+
     @Async("taskExecutor")
     public CompletableFuture<Void> saveMessageAsync(ChatMessage chatMessage) {
         try {
             // Save message to database in background
             ChatMessage savedMessage = chatService.saveMessage(chatMessage);
-            
+
             // Update the message with database ID if needed
-            if (savedMessage.getId() != null) {
+            if (savedMessage != null && savedMessage.getId() != null) {
                 // Send updated message with real ID to both users
                 messagingTemplate.convertAndSendToUser(
                         savedMessage.getReceiverUsername(),
                         "/queue/message-update",
                         savedMessage);
-                        
+
                 messagingTemplate.convertAndSendToUser(
                         savedMessage.getSenderUsername(),
                         "/queue/message-update",
                         savedMessage);
             }
-            
+
         } catch (Exception e) {
-            // Silent fail for background operations to avoid disrupting UX
+            // Send error notification to sender
+            sendErrorMessage(chatMessage.getSenderUsername(), "Message sent but failed to save to database");
         }
         return CompletableFuture.completedFuture(null);
     }
-    
+
     private void sendErrorMessage(String username, String errorText) {
-        ChatMessage errorMessage = new ChatMessage();
-        errorMessage.setContent(errorText);
-        errorMessage.setType(ChatMessage.Type.CHAT);  // Use CHAT type for errors
-        errorMessage.setMessageType("ERROR");
-        messagingTemplate.convertAndSendToUser(username, "/queue/errors", errorMessage);
+        try {
+            ChatMessage errorMessage = new ChatMessage();
+            errorMessage.setContent(errorText);
+            errorMessage.setType(ChatMessage.Type.CHAT);
+            errorMessage.setMessageType("ERROR");
+            errorMessage.setTimestamp(java.time.LocalDateTime.now());
+            messagingTemplate.convertAndSendToUser(username, "/queue/errors", errorMessage);
+        } catch (Exception e) {
+            // Silent error handling
+        }
     }
 
     @MessageMapping("/chat.addUser")
@@ -95,6 +126,12 @@ public class ChatController {
                 chatMessage.getReceiverUsername(),
                 "/queue/typing",
                 chatMessage);
+    }
+
+    @MessageMapping("/ping")
+    public void handlePing(@Payload Object pingMessage) {
+        // Simple ping handler to keep connection alive
+        // No response needed, just acknowledges the ping
     }
 
 }

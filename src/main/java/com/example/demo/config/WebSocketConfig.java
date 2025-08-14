@@ -7,18 +7,16 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.scheduling.annotation.EnableAsync;
 
 @Configuration
 @EnableWebSocketMessageBroker
-@EnableAsync
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // Enable optimized simple broker with task scheduler
+        // Enable optimized simple broker with task scheduler for real-time messaging
         config.enableSimpleBroker("/topic", "/queue")
-              .setHeartbeatValue(new long[]{10000, 10000})
+              .setHeartbeatValue(new long[]{5000, 5000})  // Faster heartbeat for real-time
               .setTaskScheduler(taskScheduler());
         
         // Designate the "/app" prefix for messages bound for @MessageMapping methods
@@ -30,15 +28,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Register the "/ws" endpoint for WebSocket connections with optimized settings
+        // Register the "/ws" endpoint for WebSocket connections with real-time optimized settings
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .withSockJS()
-                .setHeartbeatTime(15000)  // Reduced for faster detection
-                .setDisconnectDelay(2000)  // Faster disconnect detection
-                .setStreamBytesLimit(262144)  // Increased buffer
-                .setHttpMessageCacheSize(2000)  // Increased cache
+                .setHeartbeatTime(5000)   // Much faster heartbeat for real-time
+                .setDisconnectDelay(1000) // Very fast disconnect detection
+                .setStreamBytesLimit(524288)  // Larger buffer for better throughput
+                .setHttpMessageCacheSize(5000)  // Larger cache
                 .setSessionCookieNeeded(false)
+                .setWebSocketEnabled(true)  // Prefer WebSocket over polling
                 .setClientLibraryUrl("https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js");
     }
 
@@ -72,15 +71,5 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         return scheduler;
     }
     
-    @Bean
-    public java.util.concurrent.Executor taskExecutor() {
-        org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor executor = 
-            new org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("async-chat-");
-        executor.initialize();
-        return executor;
-    }
+
 }
